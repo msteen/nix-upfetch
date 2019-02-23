@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2015
 
 # Tested succesfully with:
 # set -euxo pipefail
@@ -25,7 +26,7 @@ exit_script() {
 }
 
 die() {
-  (( ! silent )) && printf 'error: %s\n' "$*" >&2
+  printf 'error: %s\n' "$*" >&2
   exit_script 1
 }
 
@@ -46,7 +47,7 @@ if [[ $libredirect == '@''libredirect''@' ]]; then
 fi
 
 die_usage() {
-  (( ! quiet )) && { show_usage; printf '\n'; } >&2
+  { show_usage; printf '\n'; } >&2
   die "$@"
 }
 
@@ -60,6 +61,7 @@ unquote_nul() {
 }
 
 quote() {
+  # shellcheck disable=SC1003
   grep -q '^[a-zA-Z0-9_\.-]\+$' <<< "$*" && printf '%s' "$*" || printf '%s' "'${*//'/\\'}'"
 }
 
@@ -197,9 +199,12 @@ done
 
 (( $# == 0 )) || die_usage "Finished parsing the command line arguments, yet still found the following arguments remaining: $(quote_args "$@")."
 
-[[ -v prefetch_args ]] || die_usage 'Use `nix-preupfetch` to supply `nix-upfetch` the prefetch expression.'
+[[ -v prefetch_args ]] || die_usage 'Use nix-preupfetch to supply nix-upfetch the prefetch expression.'
 
 mapfile -t -d '' prefetch_args < <(unquote_nul "$prefetch_args")
+
+nix_eval_args=()
+(( debug )) && nix_eval_args+=( --show-trace )
 
 if [[ -n $input_type ]]; then
   [[ $input_type == raw ]] && quoted_input=$(quote_nul < /dev/stdin) || input=$(< /dev/stdin)
@@ -227,9 +232,9 @@ if [[ -z $XDG_RUNTIME_DIR ]]; then
   export XDG_RUNTIME_DIR
 fi
 
-prefetch_update() {
+nix_prefetch() {
   prefetch_expr=$(nix-prefetch "${prefetch_args[@]}" --quiet --output expr "$@") || exit
-  nix eval --json "(import $lib/update.nix ${prefetch_expr})" --option allow-unsafe-native-code-during-evaluation true $( (( debug )) && printf --show-trace ) || exit
+  nix eval --json "(import $lib/args.nix ${prefetch_expr})" --option allow-unsafe-native-code-during-evaluation true "${nix_eval_args[@]}" || exit
 }
 
 cleanup_tmp_files() {
@@ -238,34 +243,40 @@ cleanup_tmp_files() {
   done
 }
 
-bindings_json=$(js_obj "${!bindings[@]}" "${bindings[@]}")
+if (( ${#bindings} > 0 )); then
+  bindings_json=$(js_obj "${!bindings[@]}" "${bindings[@]}")
 
-fetcher_json="$(prefetch_update --no-compute-hash)"
+  fetcher_args_json=$(nix_prefetch --no-compute-hash)
+  fetcher_args_json=$(jq 'with_entries(select(.key as $key | ["md5", "sha1", "sha256", "sha512"] | any(. == $key)))')
 
-redirects=
-declare -A tmp_files
-while IFS= read -r -d '' file; do
-  tmp_file=$(mktemp --tmpdir=$XDG_RUNTIME_DIR nix-upfetch.XXXXXXXXXX)
-  [[ -n $redirects ]] && redirects+=':'
-  redirects+="$file=$tmp_file"
-  tmp_files[$file]=$tmp_file
-  cp "$file" "$tmp_file"
-done < <(jq --join-output '[.[] | .position.file + "\u0000"] | unique | .[]' <<< "$fetcher_json")
-trap cleanup_tmp_files EXIT
+  redirects=
+  declare -A tmp_files
+  while IFS= read -r -d '' file; do
+    tmp_file=$(mktemp --tmpdir="$XDG_RUNTIME_DIR" nix-upfetch.XXXXXXXXXX)
+    [[ -n $redirects ]] && redirects+=':'
+    redirects+="$file=$tmp_file"
+    tmp_files[$file]=$tmp_file
+    cp "$file" "$tmp_file"
+  done < <(jq --join-output '[.[] | .position.file + "\u0000"] | unique | .[]' <<< "$fetcher_args_json")
+  trap cleanup_tmp_files EXIT
 
-tmp_files_json=$(js_obj "${!tmp_files[@]}" "${tmp_files[@]}")
-fetcher_json=$(jq 'map_values(.position.file |= $tmp_files[.])' --argjson tmp_files "$tmp_files_json" <<< "$fetcher_json") || exit
+  tmp_files_json=$(js_obj "${!tmp_files[@]}" "${tmp_files[@]}")
+  fetcher_args_json=$(jq 'map_values(.position.file |= $tmp_files[.])' --argjson tmp_files "$tmp_files_json" <<< "$fetcher_args_json") || exit
 
-nix-update-fetch --yes "$fetcher_json" "$bindings_json" > /dev/null || exit
+  nix-update-fetch --yes "$fetcher_args_json" "$bindings_json" > /dev/null || exit
 
-fetcher_json=$(
-  export LD_PRELOAD=$libredirect/lib/libredirect.so
-  export NIX_REDIRECTS=$redirects
-  prefetch_update
-) || exit
+  fetcher_args_json=$(
+    export LD_PRELOAD=$libredirect/lib/libredirect.so
+    export NIX_REDIRECTS=$redirects
+    nix_prefetch
+  ) || exit
+else
+  bindings_json='{}'
+  fetcher_args_json=$(nix_prefetch)
+fi
 
 args=()
 [[ -n $context ]] && args+=( --context "$context" )
 (( yes )) && args+=( "--yes" )
 
-nix-update-fetch "${args[@]}" "$fetcher_json" "$bindings_json"
+nix-update-fetch "${args[@]}" "$fetcher_args_json" "$bindings_json"

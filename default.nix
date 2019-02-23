@@ -1,15 +1,22 @@
-{ stdenv, makeWrapper
+{ stdenv, callPackage, fetchFromGitHub, makeWrapper
 , asciidoc, docbook_xml_dtd_45, docbook_xsl, libxml2, libxslt
 , libredirect, coreutils, gawk, gnugrep, gnused, jq, nix, nix-prefetch, nix-update-fetch }:
 
 with stdenv.lib;
+
+with callPackage (fetchFromGitHub {
+  owner = "siers";
+  repo = "nix-gitignore";
+  rev = "cc962a73113dbb32407d5099c4bf6f7ecf5612c9";
+  sha256 = "08mgdnb54rhsz4024hx008dzg01c7kh3r45g068i7x91akjia2cq";
+}) { };
 
 stdenv.mkDerivation rec {
   name = "${pname}-${version}";
   pname = "nix-upfetch";
   version = "0.1.0";
 
-  src = builtins.fetchGit { url = ./.; };
+  src = gitignoreSource [ ".git" ] ./.;
 
   nativeBuildInputs = [
     makeWrapper
@@ -32,6 +39,7 @@ stdenv.mkDerivation rec {
       --subst-var-by libredirect ${libredirect}
     chmod +x $lib/main.sh
     patchShebangs $lib/main.sh
+    find .
     cp lib/*.nix $lib/
 
     mkdir -p $out/bin

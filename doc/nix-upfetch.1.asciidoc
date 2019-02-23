@@ -11,15 +11,18 @@ nix-upfetch - Update any fetcher call that can be prefetched with 'nix-prefetch'
 == Synopsis
 
 [subs="verbatim,quotes"]
- *nix-upfetch* [*--input* <input-type>] [(*-C* | *--context*) <number>] [*-y* | *--yes*] [*-vv* | *--debug*] <nix-prefetch-expr>
-              [*--*] [*--<name>* ((*-f* | *--file*) <file> | (*-E* | *--expr*) <expr> | <str>)] ...
- *nix-upfetch* *--help*
- *nix-upfetch* *--version*
+  *nix-upfetch* [*--input* <input-type>] [(*-C* | *--context*) <number>] [*-y* | *--yes*] [*-vv* | *--debug*] <nix-preupfetch>
+              [*--*] [*--<name>* ((*-E* | *--expr*) <expr> | <str>)] ...
+  *nix-upfetch* *--help*
+  *nix-upfetch* *--version*
 
 == Options
 
 All options can be repeated with the last value taken,
 and can placed both before and after the parameters.
+
+*-E* <expr>, *--expr* <expr>::
+  A Nix expression.
 
 *--input* <input-type>::
   Specify what type of input should be read from 'stdin', which will be passed as bindings. The following types are available:
@@ -51,7 +54,8 @@ and can placed both before and after the parameters.
 == Examples
 
 [subs="verbatim,quotes"]
-  *nix-upfetch* $(nix-preupfetch hello) --name hello-2.9
+  *nix-upfetch* "$(nix-preupfetch hello)" --name hello-2.9
+  *nix-upfetch* "$(nix-preupfetch kore --rev master)"
 
 == Author
 
