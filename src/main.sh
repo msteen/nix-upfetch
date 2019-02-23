@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2015
+# shellcheck disable=SC2015 disable=SC2119 disable=SC2120
 
 # Tested succesfully with:
 # set -euxo pipefail
@@ -232,36 +232,43 @@ if [[ -z $XDG_RUNTIME_DIR ]]; then
   export XDG_RUNTIME_DIR
 fi
 
+temps=()
+mktemp() {
+  temp=$(command mktemp "$@" --tmpdir="$XDG_RUNTIME_DIR" nix-upfetch.XXXXXXXXXX)
+  temps+=( "$temp" )
+  printf '%s' "$temp"
+}
+
+cleanup_temps() {
+  for temp in "${temps[@]}"; do
+    rm -rf "$temp"
+  done
+}
+trap cleanup_temps EXIT
+
 nix_prefetch() {
   prefetch_expr=$(nix-prefetch "${prefetch_args[@]}" --quiet --output expr "$@") || exit
   nix eval --json "(import $lib/args.nix ${prefetch_expr})" --option allow-unsafe-native-code-during-evaluation true "${nix_eval_args[@]}" || exit
 }
 
-cleanup_tmp_files() {
-  for tmp_file in "${tmp_files[@]}"; do
-    rm -f "$tmp_file"
-  done
-}
-
-if (( ${#bindings} > 0 )); then
+if (( ${#bindings[@]} > 0 )); then
   bindings_json=$(js_obj "${!bindings[@]}" "${bindings[@]}")
 
   fetcher_args_json=$(nix_prefetch --no-compute-hash)
-  fetcher_args_json=$(jq 'with_entries(select(.key as $key | ["md5", "sha1", "sha256", "sha512"] | any(. == $key)))')
+  fetcher_args_json=$(jq 'with_entries(select(.key as $key | ["md5", "sha1", "sha256", "sha512"] | any(. == $key)))' <<< "$fetcher_args_json")
 
   redirects=
-  declare -A tmp_files
+  declare -A temp_files
   while IFS= read -r -d '' file; do
-    tmp_file=$(mktemp --tmpdir="$XDG_RUNTIME_DIR" nix-upfetch.XXXXXXXXXX)
+    temp_file=$(mktemp)
     [[ -n $redirects ]] && redirects+=':'
-    redirects+="$file=$tmp_file"
-    tmp_files[$file]=$tmp_file
-    cp "$file" "$tmp_file"
+    redirects+="$file=$temp_file"
+    temp_files[$file]=$temp_file
+    cp "$file" "$temp_file"
   done < <(jq --join-output '[.[] | .position.file + "\u0000"] | unique | .[]' <<< "$fetcher_args_json")
-  trap cleanup_tmp_files EXIT
 
-  tmp_files_json=$(js_obj "${!tmp_files[@]}" "${tmp_files[@]}")
-  fetcher_args_json=$(jq 'map_values(.position.file |= $tmp_files[.])' --argjson tmp_files "$tmp_files_json" <<< "$fetcher_args_json") || exit
+  temp_files_json=$(js_obj "${!temp_files[@]}" "${temp_files[@]}")
+  fetcher_args_json=$(jq 'map_values(.position.file |= $temp_files[.])' --argjson temp_files "$temp_files_json" <<< "$fetcher_args_json") || exit
 
   nix-update-fetch --yes "$fetcher_args_json" "$bindings_json" > /dev/null || exit
 
