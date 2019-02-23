@@ -1,0 +1,58 @@
+:man source: nix-upfetch
+:man version: @version@
+:man manual: Command Reference
+
+= nix-upfetch(1)
+
+== Name
+
+nix-upfetch - Update any fetcher call that can be prefetched with 'nix-prefetch'
+
+== Synopsis
+
+[subs="verbatim,quotes"]
+ *nix-upfetch* [*--input* <input-type>] [(*-C* | *--context*) <number>] [*-y* | *--yes*] [*-vv* | *--debug*] <nix-prefetch-expr>
+              [*--*] [*--<name>* ((*-f* | *--file*) <file> | (*-E* | *--expr*) <expr> | <str>)] ...
+ *nix-upfetch* *--help*
+ *nix-upfetch* *--version*
+
+== Options
+
+All options can be repeated with the last value taken,
+and can placed both before and after the parameters.
+
+*--input* <input-type>::
+  Specify what type of input should be read from 'stdin', which will be passed as bindings. The following types are available:
+
+  'nix';;
+    A Nix attribute set.
+
+  'json';;
+    A JSON object.
+
+  'shell';;
+    Lines of name/value pairs separated by an '=' (equals) sign.
+
+*-C* <number>, *--context* <number>::
+  The number of lines of context should be added around any difference found.
+
+*-y*, *--yes*::
+  Do not interactively ask to apply the changes, assume yes.
+
+*-vv*, *--debug*::
+  Debug output to 'stderr'.
+
+*--help*::
+  Show help message.
+
+*--version*::
+  Show version information.
+
+== Examples
+
+[subs="verbatim,quotes"]
+  *nix-upfetch* $(nix-preupfetch hello) --name hello-2.9
+
+== Author
+
+*Matthijs Steen*
