@@ -39,7 +39,6 @@ stdenv.mkDerivation rec {
       --subst-var-by libredirect ${libredirect}
     chmod +x $lib/main.sh
     patchShebangs $lib/main.sh
-    find .
     cp lib/*.nix $lib/
 
     mkdir -p $out/bin
