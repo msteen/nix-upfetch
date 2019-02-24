@@ -25,9 +25,14 @@ exit_script() {
   kill -SIGHUP -- "$pid"
 }
 
-die() {
+exit_with_error() {
+  local ret=$1; shift
   printf 'error: %s\n' "$*" >&2
-  exit_script 1
+  (( ret )) && exit_script "$ret" || exit_script 1
+}
+
+die() {
+  exit_with_error $? "$@"
 }
 
 # Allow the source to be used directly when developing.
@@ -47,8 +52,9 @@ if [[ $libredirect == '@''libredirect''@' ]]; then
 fi
 
 die_usage() {
+  local ret=$?
   { show_usage; printf '\n'; } >&2
-  die "$@"
+  exit_with_error $ret "$@"
 }
 
 # https://stackoverflow.com/questions/6570531/assign-string-containing-null-character-0-to-a-variable-in-bash
@@ -102,6 +108,21 @@ nix_typed() {
        *) die_usage "Unsupported expression type '${type}'.";;
   esac
   printf '%s' "$value"
+}
+
+print_assign() {
+  printf '> %s=%s\n' "$1" "$(quote "$2")" >&2
+}
+
+print_vars() {
+  # shellcheck disable=SC2048
+  for var in $*; do
+    [[ -v $var ]] && print_assign "$var" "${!var}"
+  done
+}
+
+print_bash_vars() {
+  (( debug )) && printf 'The following Bash variables have been set:\n%s\n\n' "$(print_vars "$1" 2>&1)" >&2 || true
 }
 
 show_usage() {
@@ -185,7 +206,7 @@ while (( $# >= 1 )); do
         (( disambiguate )) && break || continue
       fi
       if (( param_count++ == 0 )); then
-        prefetch_args=$arg
+        prefetch_call=$arg
       else
         die_usage "An unexpected extra parameter '${arg}' has been given."
       fi
@@ -199,9 +220,9 @@ done
 
 (( $# == 0 )) || die_usage "Finished parsing the command line arguments, yet still found the following arguments remaining: $(quote_args "$@")."
 
-[[ -v prefetch_args ]] || die_usage 'Use nix-preupfetch to supply nix-upfetch the prefetch expression.'
+[[ -v prefetch_call ]] || die_usage 'Use nix-preupfetch to supply nix-upfetch the prefetch expression.'
 
-mapfile -t -d '' prefetch_args < <(unquote_nul "$prefetch_args")
+mapfile -t -d '' prefetch_call < <(unquote_nul "$prefetch_call")
 
 nix_eval_args=()
 (( debug )) && nix_eval_args+=( --show-trace )
@@ -222,6 +243,16 @@ if [[ -n $input_type ]]; then
   done < <(unquote_nul "$quoted_input")
 fi
 
+if (( debug )); then
+  printf '%s\n' "$(print_bash_vars 'input_type context yes debug' 2>&1)" >&2
+  print_assign 'prefetch_call' "${prefetch_call[*]}"
+  for name in "${!bindings[@]}"; do
+    value=${bindings[$name]}
+    print_assign "bindings[$name]" "$value"
+  done
+  echo >&2
+fi
+
 ## ##
 ## Main command
 ## ##
@@ -234,6 +265,7 @@ fi
 
 temps=()
 mktemp() {
+  local temp
   temp=$(command mktemp "$@" --tmpdir="$XDG_RUNTIME_DIR" nix-upfetch.XXXXXXXXXX)
   temps+=( "$temp" )
   printf '%s' "$temp"
@@ -247,9 +279,9 @@ cleanup_temps() {
 trap cleanup_temps EXIT
 
 nix_prefetch() {
+  local arg args=() disambiguate=0 prefetch_expr
   set -- --quiet --output expr "$@"
-  local arg args=() disambiguate=0
-  for arg in "${prefetch_args[@]}"; do
+  for arg in "${prefetch_call[@]:1}"; do
     (( ! disambiguate )) && [[ $arg == -- ]] && disambiguate=1 && args+=( "$@" )
     args+=( "$arg" )
   done
@@ -296,6 +328,6 @@ fi
 
 args=()
 [[ -n $context ]] && args+=( --context "$context" )
-(( yes )) && args+=( "--yes" )
+(( yes )) && args+=( --yes )
 
 nix-update-fetch "${args[@]}" "$fetcher_args_json" "$bindings_json"

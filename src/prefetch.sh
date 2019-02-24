@@ -5,4 +5,4 @@ quote_nul() {
   sed 's/\\/\\\\/g;s/\x0/\\x00/g'
 }
 
-printf '%s\0' "$@" | quote_nul
+printf '%s\0' 'nix-prefetch' "$@" | quote_nul
