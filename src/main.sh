@@ -53,7 +53,7 @@ die_usage() {
 
 # https://stackoverflow.com/questions/6570531/assign-string-containing-null-character-0-to-a-variable-in-bash
 quote_nul() {
-  sed 's/\\/\\\\/g;s/\x0/\\0/g'
+  sed 's/\\/\\\\/g;s/\x0/\\x00/g'
 }
 
 unquote_nul() {
@@ -246,8 +246,19 @@ cleanup_temps() {
 }
 trap cleanup_temps EXIT
 
+nixpkgs_overlays=$XDG_RUNTIME_DIR/nix-prefetch/overlays
+[[ -d $nixpkgs_overlays ]] || nixpkgs_overlays+=.nix
+nix_eval_args+=( -I "nixpkgs-overlays=${nixpkgs_overlays}" )
+
 nix_prefetch() {
-  prefetch_expr=$(nix-prefetch "${prefetch_args[@]}" --quiet --output expr "$@") || exit
+  set -- --quiet --output expr "$@"
+  local arg args=() disambiguate=0
+  for arg in "${prefetch_args[@]}"; do
+    (( ! disambiguate )) && [[ $arg == -- ]] && disambiguate=1 && args+=( "$@" )
+    args+=( "$arg" )
+  done
+  (( disambiguate )) || args+=( "$@" )
+  prefetch_expr=$(nix-prefetch "${args[@]}") || exit
   nix eval --json "(import $lib/args.nix ${prefetch_expr})" --option allow-unsafe-native-code-during-evaluation true "${nix_eval_args[@]}" || exit
 }
 

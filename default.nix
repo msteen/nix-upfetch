@@ -1,6 +1,7 @@
 { stdenv, callPackage, fetchFromGitHub, makeWrapper
+, rustPlatform, pkgconfig, ncurses
 , asciidoc, docbook_xml_dtd_45, docbook_xsl, libxml2, libxslt
-, libredirect, coreutils, gawk, gnugrep, gnused, jq, nix, nix-prefetch, nix-update-fetch }:
+, libredirect, coreutils, gawk, gnugrep, gnused, jq, nix, nix-prefetch }:
 
 with stdenv.lib;
 
@@ -11,7 +12,35 @@ with callPackage (fetchFromGitHub {
   sha256 = "08mgdnb54rhsz4024hx008dzg01c7kh3r45g068i7x91akjia2cq";
 }) { };
 
-stdenv.mkDerivation rec {
+let
+  nix-update-fetch = rustPlatform.buildRustPackage rec {
+    name = "${pname}-${version}";
+    pname = "nix-update-fetch";
+    version = "0.1.0";
+
+    src = fetchFromGitHub {
+      owner = "msteen";
+      repo = "nix-update-fetch";
+      rev = "62565de492e7eba2847f4159877ec163b437e705";
+      sha256 = "0aikw6m00m04zb1lv9qc03fgm57iq6lgi8g820b078kb1rqn7pzf";
+    };
+
+    RUSTC_BOOTSTRAP = 1;
+
+    buildInputs = [ pkgconfig ncurses ];
+
+    cargoSha256 = "0g2gmmhx2gcb02yqmzavx7fqyvdblgg16rhq10rw2slnrmsz84k6";
+
+    meta = {
+      description = "Prefetch any fetcher function call, e.g. a package source";
+      homepage = https://github.com/msteen/nix-update-fetch;
+      license = licenses.mit;
+      maintainers = with maintainers; [ msteen ];
+      platforms = platforms.all;
+    };
+  };
+
+in stdenv.mkDerivation rec {
   name = "${pname}-${version}";
   pname = "nix-upfetch";
   version = "0.1.0";
