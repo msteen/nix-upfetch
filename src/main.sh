@@ -246,10 +246,6 @@ cleanup_temps() {
 }
 trap cleanup_temps EXIT
 
-nixpkgs_overlays=$XDG_RUNTIME_DIR/nix-prefetch/overlays
-[[ -d $nixpkgs_overlays ]] || nixpkgs_overlays+=.nix
-nix_eval_args+=( -I "nixpkgs-overlays=${nixpkgs_overlays}" )
-
 nix_prefetch() {
   set -- --quiet --output expr "$@"
   local arg args=() disambiguate=0
@@ -259,6 +255,11 @@ nix_prefetch() {
   done
   (( disambiguate )) || args+=( "$@" )
   prefetch_expr=$(nix-prefetch "${args[@]}") || exit
+  if [[ ! -v nixpkgs_overlays ]]; then
+    nixpkgs_overlays=$XDG_RUNTIME_DIR/nix-prefetch/overlays
+    [[ -d $nixpkgs_overlays ]] || nixpkgs_overlays+=.nix
+    nix_eval_args+=( -I "nixpkgs-overlays=${nixpkgs_overlays}" )
+  fi
   nix eval --json "(import $lib/args.nix ${prefetch_expr})" --option allow-unsafe-native-code-during-evaluation true "${nix_eval_args[@]}" || exit
 }
 
