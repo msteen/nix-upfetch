@@ -21,8 +21,8 @@ let
     src = fetchFromGitHub {
       owner = "msteen";
       repo = "nix-update-fetch";
-      rev = "62565de492e7eba2847f4159877ec163b437e705";
-      sha256 = "0aikw6m00m04zb1lv9qc03fgm57iq6lgi8g820b078kb1rqn7pzf";
+      rev = "bc201ec28be669f67501058e97b93e6a6e7b4e07";
+      sha256 = "09qqk9wcbbnwv0rkmr18k4pvaf6xpbrfci7ki44v8m6p4pwvqczw";
     };
 
     RUSTC_BOOTSTRAP = 1;
@@ -32,7 +32,7 @@ let
     cargoSha256 = "0g2gmmhx2gcb02yqmzavx7fqyvdblgg16rhq10rw2slnrmsz84k6";
 
     meta = {
-      description = "Prefetch any fetcher function call, e.g. a package source";
+      description = "Update a call made to a fetcher function call and its surrounding bindings";
       homepage = https://github.com/msteen/nix-update-fetch;
       license = licenses.mit;
       maintainers = with maintainers; [ msteen ];
