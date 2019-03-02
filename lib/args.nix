@@ -1,10 +1,11 @@
 { pkgs, fetcher, prefetcher }:
 
+with builtins;
 with pkgs.lib;
 
 let
   # https://github.com/NixOS/nixpkgs/blob/d4224f05074b6b8b44fd9bd68e12d4f55341b872/lib/strings.nix#L316
-  escapeNixString = s: escape ["$"] (builtins.toJSON s);
+  escapeNixString = s: escape ["$"] (toJSON s);
 
   hashAlgo = findFirst (name: prefetcher.args ? ${name})
     (throw "The fetcher is expected to have a hash defined, otherwise it cannot be updated.")
@@ -17,7 +18,7 @@ let
 
   diffArgs = filterAttrs (name: value: value != fetcher.args.${name}) presentArgs;
 
-in mapAttrs (name: value: {
-  position = builtins.unsafeGetAttrPos name fetcher.args;
+in toJSON (mapAttrs (name: value: {
+  position = unsafeGetAttrPos name fetcher.args;
   value = escapeNixString value;
-}) (diffArgs // { ${hashAlgo} = prefetcher.args.${hashAlgo}; })
+}) (diffArgs // { ${hashAlgo} = prefetcher.args.${hashAlgo}; }))

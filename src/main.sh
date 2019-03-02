@@ -10,6 +10,7 @@
 
 lib='@lib@'
 libredirect='@libredirect@'
+version='@version@'
 
 ## ##
 ## Helper functions
@@ -149,15 +150,13 @@ case $1 in
     exit
     ;;
   --version)
-    nix-update-fetch --version
+    printf '%s\n' "$version"
     exit
     ;;
 esac
 
-input_type=
-context=
-yes=0
-debug=0
+input_type=; context=
+yes=0; debug=0
 declare -A bindings
 param_count=0
 while (( $# >= 1 )); do
@@ -280,19 +279,13 @@ trap cleanup_temps EXIT
 
 nix_prefetch() {
   local arg args=() disambiguate=0 prefetch_expr
-  set -- --quiet --output expr "$@"
+  set -- --quiet --eval "import $lib/args.nix" "$@"
   for arg in "${prefetch_call[@]:1}"; do
     (( ! disambiguate )) && [[ $arg == -- ]] && disambiguate=1 && args+=( "$@" )
     args+=( "$arg" )
   done
   (( disambiguate )) || args+=( "$@" )
-  prefetch_expr=$(nix-prefetch "${args[@]}") || exit
-  if [[ ! -v nixpkgs_overlays ]]; then
-    nixpkgs_overlays=$XDG_RUNTIME_DIR/nix-prefetch/overlays
-    [[ -d $nixpkgs_overlays ]] || nixpkgs_overlays+=.nix
-    nix_eval_args+=( -I "nixpkgs-overlays=${nixpkgs_overlays}" )
-  fi
-  nix eval --json "(import $lib/args.nix ${prefetch_expr})" --option allow-unsafe-native-code-during-evaluation true "${nix_eval_args[@]}" || exit
+  nix-prefetch "${args[@]}" || exit
 }
 
 if (( ${#bindings[@]} > 0 )); then

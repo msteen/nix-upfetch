@@ -65,7 +65,8 @@ in stdenv.mkDerivation rec {
     mkdir -p $lib
     substitute src/main.sh $lib/main.sh \
       --subst-var-by lib $lib \
-      --subst-var-by libredirect ${libredirect}
+      --subst-var-by libredirect ${libredirect} \
+      --subst-var-by version '${version}'
     chmod +x $lib/main.sh
     patchShebangs $lib/main.sh
     cp lib/*.nix $lib/
